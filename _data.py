@@ -7,51 +7,45 @@ import pandas as pd
 import pytoolkit as tk
 
 data_dir = pathlib.Path(f"data")
-cache_dir = pathlib.Path(f"cache")
 logger = tk.log.get(__name__)
 
 
-def load_data():
-    """訓練データ・テストデータの読み込み"""
-    return load_train_data(), load_test_data()
-
-
-# @tk.cache.memorize(cache_dir)
 def load_check_data():
     """チェック用データの読み込み"""
-    return load_train_data().slice(list(range(32)))
+    return load_train_data().slice(list(range(0, 61878, 1000)))
 
 
-@tk.cache.memorize(cache_dir)
 def load_train_data():
     """訓練データの読み込み"""
-    X_train = None  # TODO
-    y_train = None  # TODO
-    return tk.data.Dataset(X_train, y_train)
+    X_train = pd.read_csv(data_dir / "train.csv")
+    y_train = (
+        np.char.replace(X_train["target"].values.astype(str), "Class_", "").astype(
+            np.uint8
+        )
+        - 1
+    )
+    X_train = X_train.drop(columns=["id", "target"])
+    return tk.data.Dataset(preprocess(X_train), y_train)
 
 
-@tk.cache.memorize(cache_dir)
 def load_test_data():
     """テストデータの読み込み"""
-    X_test = None  # TODO
-    return tk.data.Dataset(X_test)
+    X_test = pd.read_csv(data_dir / "test.csv")
+    ids_test = X_test["id"]
+    X_test = X_test.drop(columns=["id"])
+    return tk.data.Dataset(preprocess(X_test), ids=ids_test)
 
 
-def save_oofp(models_dir, train_set, pred):
-    """訓練データのout-of-fold predictionsの保存と評価"""
-    if tk.hvd.is_master():
-        tk.utils.dump(pred, models_dir / "pred_train.pkl")
-
-        evals = tk.evaluations.evaluate_classification(train_set.labels, pred)
-        tk.notifications.post_evals(evals)
+def preprocess(X):
+    """前処理"""
+    X = np.log1p(X)
+    return X
 
 
 def save_prediction(models_dir, test_set, pred):
     """テストデータの予測結果の保存"""
-    if tk.hvd.is_master():
-        tk.utils.dump(pred, models_dir / "pred_test.pkl")
-
-        df = pd.DataFrame()
-        df["id"] = np.arange(1, len(test_set) + 1)
-        df["y"] = pred.argmax(axis=-1)
-        df.to_csv(models_dir / "submission.csv", index=False)
+    df = pd.DataFrame()
+    df["id"] = np.arange(1, len(test_set) + 1)
+    for i in range(9):
+        df[f"Class_{i + 1}"] = pred[:, i]
+    df.to_csv(models_dir / "submission.csv", index=False)
