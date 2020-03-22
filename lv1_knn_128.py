@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-logloss: 0.422
+acc:     0.749
 """
 # region imports
 
@@ -18,6 +18,7 @@ import sklearn.ensemble  # noqa: F401
 import sklearn.linear_model  # noqa: F401
 import sklearn.metrics  # noqa: F401
 import sklearn.model_selection  # noqa: F401
+import sklearn.neighbors  # noqa: F401
 import tensorflow as tf  # noqa: F401
 import tensorflow_addons as tfa  # noqa: F401
 
@@ -26,17 +27,6 @@ import pytoolkit as tk
 
 # endregion
 
-params = {
-    # https://lightgbm.readthedocs.io/en/latest/Parameters.html
-    "objective": "multiclass",
-    "metric": "multi_logloss",
-    "num_class": 9,
-    "learning_rate": 0.01,
-    "bagging_freq": 1,
-    "bagging_fraction": 0.75,
-    "verbosity": -1,
-    "nthread": 6,  # -1
-}
 num_classes = 9
 nfold = 5
 split_seed = 1
@@ -46,50 +36,26 @@ logger = tk.log.get(__name__)
 
 
 def create_model():
-    return tk.pipeline.LGBModel(params=params, nfold=nfold, models_dir=models_dir)
+    return tk.pipeline.SKLearnModel(
+        estimator=sklearn.neighbors.KNeighborsClassifier(n_neighbors=128, n_jobs=-1),
+        nfold=nfold,
+        models_dir=models_dir,
+        score_fn=score,
+        predict_method="predict_proba",
+    )
 
 
 # region data/score
 
 
-def load_mf(name):
-    mf = np.concatenate(
-        [
-            tk.utils.load(f"models/lv1_cb/pred_{name}.pkl"),
-            tk.utils.load(f"models/lv1_ert/pred_{name}.pkl"),
-            tk.utils.load(f"models/lv1_knn_5/pred_{name}.pkl"),
-            tk.utils.load(f"models/lv1_knn_5c/pred_{name}.pkl"),
-            tk.utils.load(f"models/lv1_knn_32/pred_{name}.pkl"),
-            tk.utils.load(f"models/lv1_knn_64/pred_{name}.pkl"),
-            tk.utils.load(f"models/lv1_knn_128/pred_{name}.pkl"),
-            tk.utils.load(f"models/lv1_knn_256/pred_{name}.pkl"),
-            tk.utils.load(f"models/lv1_knn_512/pred_{name}.pkl"),
-            tk.utils.load(f"models/lv1_knn_1024/pred_{name}.pkl"),
-            tk.utils.load(f"models/lv1_knn_1024c/pred_{name}.pkl"),
-            tk.utils.load(f"models/lv1_lgb/pred_{name}.pkl"),
-            tk.utils.load(f"models/lv1_nn/pred_{name}.pkl"),
-            tk.utils.load(f"models/lv1_nn2/pred_{name}.pkl"),
-            tk.utils.load(f"models/lv1_rf/pred_{name}.pkl"),
-            tk.utils.load(f"models/lv1_rgf/pred_{name}.pkl"),
-            tk.utils.load(f"models/lv1_xgb/pred_{name}.pkl"),
-        ],
-        axis=-1,
-    )
-    return mf
-
-
 def load_train_data():
     dataset = _data.load_train_data()
-    dataset.data = load_mf("train")
     return dataset
 
 
 def load_test_data():
-    mf = load_mf("test")
-    dataset = _data.load_train_data()
-    for mf_i in mf:
-        dataset.data = mf_i
-        yield dataset
+    dataset = _data.load_test_data()
+    return dataset
 
 
 def score(
@@ -101,11 +67,6 @@ def score(
 # endregion
 
 # region commands
-
-
-@app.command()
-def train_only():
-    train()
 
 
 @app.command(then="validate")
@@ -129,15 +90,13 @@ def validate():
 
 @app.command()
 def predict():
-    test_set_list = list(load_test_data())
+    test_set = load_test_data()
     model = create_model().load()
-    pred_list = []
-    for test_set in test_set_list:
-        pred_list.extend(model.predict_all(test_set))
+    pred_list = model.predict_all(test_set)
     pred = np.mean(pred_list, axis=0)
     if tk.hvd.is_master():
         tk.utils.dump(pred_list, models_dir / "pred_test.pkl")
-        _data.save_prediction(models_dir, test_set_list[0], pred)
+        _data.save_prediction(models_dir, test_set, pred)
 
 
 # endregion
