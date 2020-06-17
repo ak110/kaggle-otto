@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-acc:     0.807
+acc:     0.818
 """
 # region imports
 
@@ -27,7 +27,7 @@ import pytoolkit as tk
 # endregion
 
 num_classes = 9
-batch_size = 256
+batch_size = 2048
 nfold = 5
 split_seed = 1
 models_dir = pathlib.Path(f"models/{pathlib.Path(__file__).stem}")
@@ -49,6 +49,7 @@ def create_model():
         base_models_dir=None,
         callbacks=[tk.callbacks.CosineAnnealing()],
         # parallel_cv=True,
+        skip_if_exists=False,  # TODO: 実験用
     )
 
 
@@ -125,17 +126,32 @@ def predict():
 
 
 def create_network():
+    dense = functools.partial(
+        tf.keras.layers.Dense,
+        use_bias=False,
+        kernel_initializer="he_uniform",
+        # kernel_regularizer=tf.keras.regularizers.l2(1e-4),
+    )
+    bn = functools.partial(
+        tf.keras.layers.BatchNormalization,
+        gamma_regularizer=tf.keras.regularizers.l2(1e-4),
+    )
+    act = functools.partial(tf.keras.layers.Activation, "relu")
+
     inputs = x = tf.keras.layers.Input((93,))
-    x = tf.keras.layers.Dense(
-        512, kernel_initializer="he_uniform", activation=tfa.activations.mish,
-    )(x)
-    x = tf.keras.layers.Dense(
-        512, kernel_initializer="he_uniform", activation=tfa.activations.mish,
-    )(x)
-    x = tf.keras.layers.Dense(9, kernel_initializer="zeros")(x)
+    x = dense(1024)(x)
+    x = bn()(x)
+    x = act()(x)
+    x = tf.keras.layers.Dropout(0.25)(x)
+    x = dense(1024)(x)
+    x = bn()(x)
+    x = act()(x)
+    x = tf.keras.layers.Dropout(0.25)(x)
+    x = dense(9, kernel_initializer="zeros", use_bias=True)(x)
     model = tf.keras.models.Model(inputs=inputs, outputs=x)
 
-    learning_rate = 1e-3 * batch_size * tk.hvd.size() * app.num_replicas_in_sync
+    # ↓lr少し小さめ
+    learning_rate = 3e-4 * batch_size * tk.hvd.size() * app.num_replicas_in_sync
     optimizer = tf.keras.optimizers.SGD(
         learning_rate=learning_rate, momentum=0.9, nesterov=True
     )

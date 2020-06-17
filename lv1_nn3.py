@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-acc:     0.822
+acc:     0.818
 """
 # region imports
 
@@ -45,7 +45,7 @@ def create_model():
         refine_data_loader=MyDataLoader(mode="refine"),
         val_data_loader=MyDataLoader(mode="test"),
         epochs=100,
-        refine_epochs=10,
+        refine_epochs=5,
         base_models_dir=None,
         callbacks=[tk.callbacks.CosineAnnealing()],
         # parallel_cv=True,
@@ -150,18 +150,10 @@ def create_network():
     x = dense(9, kernel_initializer="zeros", use_bias=True)(x)
     model = tf.keras.models.Model(inputs=inputs, outputs=x)
 
-    # ↓lr少し小さめ
-    learning_rate = 3e-4 * batch_size * tk.hvd.size() * app.num_replicas_in_sync
-    optimizer = tf.keras.optimizers.SGD(
-        learning_rate=learning_rate, momentum=0.9, nesterov=True
-    )
-
     def loss(y_true, logits):
-        return tk.losses.categorical_crossentropy(
-            y_true, logits, from_logits=True, label_smoothing=0.2
-        )
+        return tk.losses.categorical_focal_loss(y_true, logits, from_logits=True)
 
-    tk.models.compile(model, optimizer, loss, ["acc"])
+    tk.models.compile(model, "adam", loss, ["acc"])
 
     x = tf.keras.layers.Activation("softmax")(x)
     prediction_model = tf.keras.models.Model(inputs=inputs, outputs=x)
@@ -170,9 +162,7 @@ def create_network():
 
 class MyDataLoader(tk.data.DataLoader):
     def __init__(self, mode):
-        super().__init__(
-            batch_size=batch_size, data_per_sample=2 if mode == "train" else 1,
-        )
+        super().__init__(batch_size=batch_size)
         self.mode = mode
 
     def get_ds(
@@ -190,7 +180,7 @@ class MyDataLoader(tk.data.DataLoader):
             y = tf.one_hot(dataset.labels, num_classes)
         ds = tf.data.Dataset.from_tensor_slices((X, y))
         ds = ds.shuffle(buffer_size=len(dataset)) if shuffle else ds
-        if self.mode == "train":
+        if False and self.mode == "train":
             assert self.data_per_sample == 2
             ds = tk.data.mixup(ds)
         else:

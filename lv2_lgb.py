@@ -34,8 +34,9 @@ params = {
     "learning_rate": 0.01,
     "bagging_freq": 1,
     "bagging_fraction": 0.75,
+    "feature_fraction": 0.25,
     "verbosity": -1,
-    "nthread": 6,  # -1
+    "nthread": 4,  # -1
 }
 num_classes = 9
 nfold = 5
@@ -59,16 +60,17 @@ def load_mf(name):
             tk.utils.load(f"models/lv1_ert/pred_{name}.pkl"),
             tk.utils.load(f"models/lv1_knn_5/pred_{name}.pkl"),
             tk.utils.load(f"models/lv1_knn_5c/pred_{name}.pkl"),
-            tk.utils.load(f"models/lv1_knn_32/pred_{name}.pkl"),
-            tk.utils.load(f"models/lv1_knn_64/pred_{name}.pkl"),
-            tk.utils.load(f"models/lv1_knn_128/pred_{name}.pkl"),
-            tk.utils.load(f"models/lv1_knn_256/pred_{name}.pkl"),
-            tk.utils.load(f"models/lv1_knn_512/pred_{name}.pkl"),
-            tk.utils.load(f"models/lv1_knn_1024/pred_{name}.pkl"),
-            tk.utils.load(f"models/lv1_knn_1024c/pred_{name}.pkl"),
+            # tk.utils.load(f"models/lv1_knn_32/pred_{name}.pkl"),
+            # tk.utils.load(f"models/lv1_knn_64/pred_{name}.pkl"),
+            # tk.utils.load(f"models/lv1_knn_128/pred_{name}.pkl"),
+            # tk.utils.load(f"models/lv1_knn_256/pred_{name}.pkl"),
+            # tk.utils.load(f"models/lv1_knn_512/pred_{name}.pkl"),
+            # tk.utils.load(f"models/lv1_knn_1024/pred_{name}.pkl"),
+            # tk.utils.load(f"models/lv1_knn_1024c/pred_{name}.pkl"),
             tk.utils.load(f"models/lv1_lgb/pred_{name}.pkl"),
             tk.utils.load(f"models/lv1_nn/pred_{name}.pkl"),
             tk.utils.load(f"models/lv1_nn2/pred_{name}.pkl"),
+            tk.utils.load(f"models/lv1_nn3/pred_{name}.pkl"),
             tk.utils.load(f"models/lv1_rf/pred_{name}.pkl"),
             tk.utils.load(f"models/lv1_rgf/pred_{name}.pkl"),
             tk.utils.load(f"models/lv1_xgb/pred_{name}.pkl"),
